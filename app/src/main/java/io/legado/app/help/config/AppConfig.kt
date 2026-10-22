@@ -784,8 +784,16 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
     val webDavBookAutoRestore
         get() = appCtx.getPrefBoolean(PreferKey.webDavBookAutoRestore, false)
 
+    /**
+     * 是否在导入本地书籍后自动上传到 WebDav。
+     *
+     * 注意：自用 mod 版这里默认 **true**（官方版与 PR #1418 为 false，遵循维护者
+     * 「默认关闭、按需打开」的意见）。改默认值时**必须同步**
+     * `pref_config_backup.xml` 里该开关的 android:defaultValue，
+     * 否则会出现「界面显示关闭、实际却在自动上传」的错位。
+     */
     val webDavBookAutoUpload
-        get() = appCtx.getPrefBoolean(PreferKey.webDavBookAutoUpload, false)
+        get() = appCtx.getPrefBoolean(PreferKey.webDavBookAutoUpload, true)
 
     /**
      * WebDAV 上保留的备份份数，默认 0 表示**不自动清理**。
