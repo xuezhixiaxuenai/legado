@@ -169,6 +169,37 @@ object AppWebDav {
         if (!NetworkUtils.isAvailable()) throw NoStackTraceException("网络未连接")
         val putUrl = "$rootWebDavUrl$fileName"
         WebDav(putUrl, authorization).upload(Backup.zipFilePath)
+        // 上传成功后清理同一设备的历史备份，只保留刚上传的这份
+        kotlin.runCatching {
+            pruneOldBackups(authorization, fileName)
+        }.onFailure {
+            currentCoroutineContext().ensureActive()
+            AppLog.put("清理旧备份失败\n${it.localizedMessage}", it)
+        }
+    }
+
+    /**
+     * 删除同一设备的历史备份，只保留 [currentFileName]。
+     *
+     * 阅读的备份名是 `backup<yyyy-MM-dd>-<deviceName>.zip`，每备份一次就新建一个文件，
+     * 不同日期的不会互相覆盖，于是长期使用会不断累积（实测 4 个多月攒了 17 个）。
+     *
+     * 这里按 `-<deviceName>.zip` 后缀只匹配**本机**的备份，删除除本次以外的所有旧文件，
+     * 因此不会误删其它设备的备份。失败只记日志，不影响备份本身。
+     */
+    private suspend fun pruneOldBackups(authorization: Authorization, currentFileName: String) {
+        val deviceName = AppConfig.webDavDeviceName
+        if (deviceName.isNullOrBlank()) return
+        val suffix = "-$deviceName.zip"
+        val sameDevice = WebDav(rootWebDavUrl, authorization).listFiles()
+            .filter { !it.isDir && it.displayName.startsWith("backup") && it.displayName.endsWith(suffix) }
+        sameDevice.forEach { file ->
+            if (file.displayName != currentFileName) {
+                kotlin.runCatching {
+                    WebDav(file.path, authorization).delete()
+                }
+            }
+        }
     }
 
     /**
